@@ -1,0 +1,95 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information including role and trust score.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique identifier for the user." },
+        "displayName": { "type": "string", "description": "User's full name." },
+        "email": { "type": "string", "description": "User's email address." },
+        "photoURL": { "type": "string", "description": "URL to user's profile picture." },
+        "role": { "type": "string", "enum": ["buyer", "seller", "admin"], "description": "User's role in the marketplace." },
+        "trustScore": { "type": "number", "description": "AI-generated trust score for the user." },
+        "isVerified": { "type": "boolean", "description": "Whether the seller is verified." },
+        "onboardingCompleted": { "type": "boolean", "description": "Whether the user has completed onboarding." },
+        "subscription": {
+          "type": "object",
+          "properties": {
+            "plan": { "type": "string", "enum": ["none", "weekly", "monthly", "yearly"], "description": "Current subscription plan." },
+            "expiresAt": { "type": "string", "format": "date-time", "description": "When the subscription expires." }
+          },
+          "description": "Premium subscription details."
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user account was created." }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Information about products listed for sale.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the product." },
+        "sellerId": { "type": "string", "description": "UID of the seller." },
+        "title": { "type": "string", "description": "Product title." },
+        "description": { "type": "string", "description": "Product description." },
+        "price": { "type": "number", "description": "Product price." },
+        "category": { "type": "string", "description": "Product category." },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "AI-generated tags for the product." },
+        "images": { "type": "array", "items": { "type": "string" }, "description": "URLs to product images." },
+        "status": { "type": "string", "enum": ["active", "sold", "archived"], "description": "Current status of the listing." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the product was listed." }
+      },
+      "required": ["sellerId", "title", "price", "status"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Transaction records between buyers and sellers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the order." },
+        "buyerId": { "type": "string", "description": "UID of the buyer." },
+        "sellerId": { "type": "string", "description": "UID of the seller." },
+        "productId": { "type": "string", "description": "ID of the product purchased." },
+        "amount": { "type": "number", "description": "Total order amount." },
+        "status": { "type": "string", "enum": ["pending", "paid", "shipped", "completed", "disputed", "refunded"], "description": "Current status of the order." },
+        "escrowStatus": { "type": "string", "enum": ["held", "released", "refunded"], "description": "Status of the escrow payment." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the order was placed." }
+      },
+      "required": ["buyerId", "sellerId", "productId", "amount", "status"]
+    },
+    "Dispute": {
+      "title": "Dispute",
+      "description": "AI-driven dispute resolution records.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the dispute." },
+        "orderId": { "type": "string", "description": "ID of the related order." },
+        "reason": { "type": "string", "description": "Reason for the dispute." },
+        "aiRecommendation": { "type": "string", "description": "AI-generated recommendation for resolution." },
+        "status": { "type": "string", "enum": ["open", "resolved", "closed"], "description": "Status of the dispute." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the dispute was opened." }
+      },
+      "required": ["orderId", "reason", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Product listing documents."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Order transaction documents."
+    },
+    "/disputes/{disputeId}": {
+      "schema": "Dispute",
+      "description": "Dispute resolution documents."
+    }
+  }
+}

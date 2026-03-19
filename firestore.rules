@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (UID)
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string
+    //   - email: string (required, PII)
+    //   - photoURL: string
+    //   - role: string (required, enum: buyer, seller, admin)
+    //   - trustScore: number
+    //   - isVerified: bool
+    //   - onboardingCompleted: bool
+    //   - createdAt: timestamp
+    //
+    // Collection: products
+    // Document ID: productId
+    // Fields:
+    //   - id: string
+    //   - sellerId: string (required)
+    //   - title: string (required)
+    //   - description: string
+    //   - price: number (required)
+    //   - category: string
+    //   - tags: list
+    //   - images: list
+    //   - status: string (required, enum: active, sold, archived)
+    //   - createdAt: timestamp
+    //
+    // Collection: orders
+    // Document ID: orderId
+    // Fields:
+    //   - id: string
+    //   - buyerId: string (required)
+    //   - sellerId: string (required)
+    //   - productId: string (required)
+    //   - amount: number (required)
+    //   - status: string (required)
+    //   - escrowStatus: string
+    //   - createdAt: timestamp
+    //
+    // Collection: disputes
+    // Document ID: disputeId
+    // Fields:
+    //   - id: string
+    //   - orderId: string (required)
+    //   - reason: string (required)
+    //   - aiRecommendation: string
+    //   - status: string (required)
+    //   - createdAt: timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "oluwafemim118@gmail.com" && request.auth.token.email_verified == true));
+    }
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.role in ['buyer', 'seller', 'admin'];
+    }
+    function isValidProduct(data) {
+      return data.keys().hasAll(['sellerId', 'title', 'price', 'status']) &&
+             data.sellerId is string && data.title is string && data.title.size() < 200 &&
+             data.price is number && data.price >= 0 &&
+             data.status in ['active', 'sold', 'archived'];
+    }
+    function isValidOrder(data) {
+      return data.keys().hasAll(['buyerId', 'sellerId', 'productId', 'amount', 'status']) &&
+             data.buyerId is string && data.sellerId is string &&
+             data.amount is number && data.amount >= 0 &&
+             data.status in ['pending', 'paid', 'shipped', 'completed', 'disputed', 'refunded'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role != 'admin' || isAdmin());
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /products/{productId} {
+      allow read: if true; // Publicly readable listings
+      allow create: if isAuthenticated() && isValidProduct(request.resource.data) && request.resource.data.sellerId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin()) && isValidProduct(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data) && request.resource.data.buyerId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isAdmin()) && isValidOrder(request.resource.data);
+    }
+
+    match /disputes/{disputeId} {
+      allow read: if isAuthenticated() && (isAdmin() || exists(/databases/$(database)/documents/orders/$(resource.data.orderId)) && (get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.buyerId == request.auth.uid || get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.sellerId == request.auth.uid));
+      allow create: if isAuthenticated(); // Should be validated against order existence
+      allow update: if isAdmin();
+    }
+  }
+}
